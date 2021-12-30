@@ -2,7 +2,7 @@
 
 ### Description
 
-This project implements a web application for tracking expenses, where users would log their daily expenses/incomes, and get back daily/monthly/yearly expense reports. 
+A full web application for tracking expenses, where users would log their daily expenses/incomes, and get back daily/monthly/yearly expense reports. 
 
 
 ## Demo
