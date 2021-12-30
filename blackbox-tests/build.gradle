@@ -1,0 +1,44 @@
+plugins {
+    id 'java-library'
+}
+
+sourceCompatibility = 1.11
+
+dependencies {
+    testImplementation 'org.testng:testng:7.1.0'
+    testImplementation 'io.rest-assured:rest-assured:4.2.0'
+    testImplementation 'org.awaitility:awaitility:4.0.2'
+}
+
+task stopAndCopyCoverage {
+    doLast {
+        exec {
+            workingDir rootDir
+            commandLine 'docker-compose', '-p', rootProject.name, 'stop'
+        }
+        mkdir project.buildDir
+        ['tracker', 'reporter', 'authenticator'].each { webapp ->
+            def containerId = dockerCompose.servicesInfos."$webapp".firstContainer.containerId
+            exec {
+                commandLine 'docker', 'cp',  "$containerId:/webapp/${webapp}.exec", project.buildDir
+            }
+        }
+    }
+}
+
+test {
+    useTestNG() {
+        useDefaultListeners = true
+    }
+
+    testLogging {
+        showStandardStreams = true
+        events 'started', 'passed', 'skipped', 'failed'
+    }
+
+    outputs.upToDateWhen { false }
+
+    dependsOn ':composeUp'
+    finalizedBy stopAndCopyCoverage, ':composeLogs', ':composeDown'
+    mustRunAfter ':authenticator:test', ':tracker:test', ':reporter:test'
+}
