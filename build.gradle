@@ -1,0 +1,92 @@
+plugins {
+    id 'idea'
+    id 'jacoco'
+    id 'com.avast.gradle.docker-compose' version '0.10.7'
+}
+
+allprojects {
+    repositories {
+        mavenCentral()
+    }
+}
+
+def webappModules = ['tracker', 'reporter', 'authenticator']
+
+subprojects {
+    if (project.name in webappModules) {
+        apply plugin: 'java'
+        apply plugin: 'jacoco'
+
+        sourceCompatibility = 1.11
+
+        configurations {
+            jacocoAgentRuntime
+        }
+
+        dependencies {
+            jacocoAgentRuntime "org.jacoco:org.jacoco.agent:${jacoco.toolVersion}:runtime"
+        }
+
+        tasks.withType(Test) {
+            useTestNG() {
+                useDefaultListeners = true
+            }
+
+            testLogging {
+                showStandardStreams = true
+                events 'started', 'passed', 'skipped', 'failed'
+            }
+
+            outputs.upToDateWhen { false }
+
+            dependsOn ':servicesComposeUp'
+        }
+
+        jacocoTestReport {
+            dependsOn tasks.withType(Test)
+            reports {
+                xml.enabled = true
+                html.enabled = true
+            }
+        }
+
+        assemble.doLast {
+            copy {
+                from configurations.jacocoAgentRuntime[0]
+                into "${buildDir}/libs"
+                rename '.*jar', 'jacocoagent.jar'
+            }
+        }
+
+        rootProject.tasks.getByName('composeUp') dependsOn assemble
+    }
+}
+
+configurations { codacy }
+
+dependencies {
+    codacy 'com.codacy:codacy-coverage-reporter:+'
+}
+
+task jacocoFullReport(type: JacocoReport) {
+    classDirectories.from = webappModules.collect { project(it).sourceSets.main.java.outputDir }
+    sourceDirectories.from = webappModules.collect { project(it).sourceSets.main.java.srcDirs }
+    executionData.from = fileTree(".").matching { include "**/*.exec" }
+    reports.xml.enabled true
+}
+
+task sendCoverageToCodacy(type: JavaExec) {
+    main = 'com.codacy.CodacyCoverageReporter'
+    classpath = configurations.codacy
+    args = ['report', '-l', 'Java', '-r', jacocoFullReport.reports.xml.destination.toString()]
+    dependsOn jacocoFullReport
+}
+
+dockerCompose {
+    forceRecreate = true
+    projectName = name
+    services {
+        startedServices = ['authenticator-db', 'tracker-db', 'reporter-db', 'mq']
+        projectName = name
+    }
+}

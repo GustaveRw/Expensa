@@ -1,0 +1,1 @@
+include 'tracker', 'reporter', 'authenticator', 'api-commons', 'mq-messages', 'blackbox-tests'
